@@ -8,36 +8,35 @@
   
 
   <script type="module">
-    var videoElement ;
-    var canvasElement;
-    var canvasCtx;
+    let videoElm ;
+    let canvasElm;
+    let canvasCtx;
     
-    var canvasElement2 ;
-    var canvasCtx2;
+    let cvCanvasElm ;
+    let cvCanvasCtx;
     
-    var selfieSegmentation;
-    
-    var camera; 
+    let initialized=false;
     
     window.onload = function() {
-      videoElement = document.getElementsByClassName('input_video')[0];
-      canvasElement = document.getElementById('output_canvas');
-      canvasCtx = canvasElement.getContext('2d');
-      canvasElement2 = document.getElementById('base_canvas');
-      canvasCtx2= canvasElement2.getContext('2d');
+      videoElm = document.getElementsByClassName('input_video')[0];
+      canvasElm = document.getElementById('output_canvas');
+      canvasCtx = canvasElm.getContext('2d');
+      cvCanvasElm = document.getElementById('opencv_canvas');
+      cvCanvasCtx= cvCanvasElm.getContext('2d');
       
-      selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
+      let selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
         return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
       }});
       
+      //https://google.github.io/mediapipe/solutions/selfie_segmentation.html#models
       selfieSegmentation.setOptions({
         modelSelection: 0,
       });
     
       selfieSegmentation.onResults(onResults);
-      camera = new Camera(videoElement, {
+      let camera= new Camera(videoElm, {
         onFrame: async () => {
-          await selfieSegmentation.send({image: videoElement});
+          await selfieSegmentation.send({image: videoElm});
         },
         width: 640,
         height: 360
@@ -46,44 +45,49 @@
     };
     
     function onResults(results) {
+      if(!initialized){
+        initialized=true;
+        cvCanvasElm.width=results.image.width;
+        cvCanvasElm.height=results.image.height;
+        canvasElm.width=results.image.width*2;
+        canvasElm.height=results.image.height*2;
+      }
+      cvCanvasCtx.drawImage(results.image, 0, 0);
+      let src = cv.imread(cvCanvasElm);
+      //let src = cv.imread(results.image);
       
-      canvasCtx2.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-      let src = cv.imread(canvasElement2);
+      //let src =cv.matFromImageData(results.image);
       let dst = new cv.Mat();
       
       cv.cvtColor(src, src, cv.COLOR_RGB2GRAY, 0);
-      cv.resize(src,src, new cv.Size(640, 360), 0, 0, cv.INTER_AREA);
+      //cv.resize(src,src, new cv.Size(640, 360), 0, 0, cv.INTER_AREA);
       // You can try more different parameters
       cv.Canny(src, dst, 50, 90, 3, false);
       cv.bitwise_not(dst,dst);
       cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA);
-      cv.resize(dst,dst, new cv.Size(1280, 720), 0, 0, cv.INTER_AREA);
+      //cv.resize(dst,dst, new cv.Size(1280, 720), 0, 0, cv.INTER_AREA);
       //console.log(dst.cols+","+ dst.rows);
-      const imgData = new ImageData(new Uint8ClampedArray(dst.data, dst.cols, dst.rows), dst.cols ,dst.rows);
-      canvasCtx2.putImageData(imgData,0,0);
-      //canvasCtx2.scale(2, 2);
+      let imgData = new ImageData(new Uint8ClampedArray(dst.data, dst.cols, dst.rows), dst.cols ,dst.rows);
+      cvCanvasCtx.putImageData(imgData,0,0);
+      //cvCanvasCtx.scale(2, 2);
       
       src.delete(); dst.delete();
       
       canvasCtx.save();
-      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-      canvasCtx.drawImage(results.segmentationMask, 0, 0,canvasElement.width, canvasElement.height);
+      canvasCtx.clearRect(0, 0, canvasElm.width, canvasElm.height);
+      canvasCtx.drawImage(results.segmentationMask, 0, 0,canvasElm.width, canvasElm.height);
       
        // Only overwrite existing pixels.
       canvasCtx.globalCompositeOperation = 'source-in';
-      canvasCtx.drawImage(canvasElement2, 0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(cvCanvasElm, 0, 0, canvasElm.width, canvasElm.height);
       
       // Only overwrite missing pixels.
       canvasCtx.globalCompositeOperation = 'destination-atop';
-      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(results.image, 0, 0, canvasElm.width, canvasElm.height);
       
       canvasCtx.restore();     
      
     }
-    
-    
-    
-    
 </script>
   
   
@@ -91,9 +95,9 @@
 
 <body>
   <div class="container">
-    <video class="input_video" style="position:absolute; display:none;"></video>
-    <canvas id="base_canvas" width="1280px" height="720px" style="position:absolute;display:none;"></canvas>
-    <canvas id="output_canvas" width="1280px" height="720px" style="position:absolute;"></canvas>
+    <video class="input_video" style="position:absolute; "></video>    
+    <canvas id="output_canvas" style="position:absolute;"></canvas>
+    <canvas id="opencv_canvas" style="position:absolute;display:none;"></canvas>
   </div>
 </body>
 </html>
