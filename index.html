@@ -1,105 +1,100 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-<!--Opencvの読み込み (Selfie Segmentationのみの利用なら不要-)-->
-  <script src="https://docs.opencv.org/3.4.1/opencv.js"></script>
-  <!--カメラをmediapipeで簡単に利用するためのツール-->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <!--selfie segmentationの読み込み-->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>  
+  <head>
+    <meta charset="utf-8">
+    <!--Opencvの読み込み (Selfie Segmentationのみの利用なら不要)-->
+    <script src="https://docs.opencv.org/3.4.1/opencv.js"></script>
+    <!--カメラをmediapipeで簡単に利用するためのツール-->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <!--selfie segmentationの読み込み-->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>  
+    <script type="module">
+      let videoElm ;
+      let canvasElm;
+      let canvasCtx;    
+      let cvCanvasElm ;
+      let cvCanvasCtx;
+      let initialized=false;
+      //初期化
+      window.onload = function() {
+        //ビデオ要素の取得
+        videoElm = document.getElementById('input_video');
+        //表示用のCanvasを取得
+        canvasElm = document.getElementById('output_canvas');
+        //Canvas描画に関する情報にアクセス
+        canvasCtx = canvasElm.getContext('2d');
+        //opencv処理結果表示用のCanvasと描画に関する情報を取得
+        cvCanvasElm = document.getElementById('opencv_canvas');
+        cvCanvasCtx= cvCanvasElm.getContext('2d');        
+        //Segmentationを使用するための関連ファイルの取得と初期化
+        let selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
+          return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
+        }});
+        
+        //Segmentationで使う学習モデルを選択
+        selfieSegmentation.setOptions({
+          modelSelection: 0,
+        });
+        //Segmentation結果を処理する関数を登録
+        selfieSegmentation.onResults(onResults);
+        
+        //カメラの初期化
+        let camera= new Camera(videoElm, {
+          //カメラのフレーム取得毎の処理
+          onFrame: async () => {
+            //カメラの画像を用いてSegmentatonを行う
+            await selfieSegmentation.send({image: videoElm});
+          },
+          width: 640, height: 360
+        });
+        //カメラ動作開始
+        camera.start();
+      };
+      
+      //Segmentationの結果を利用する
+      function onResults(results) {
+        if(!initialized){
+          initialized=true;
+          canvasElm.width=results.image.width*2;
+          canvasElm.height=results.image.height*2;
+          cvCanvasElm.width=results.image.width;
+          cvCanvasElm.height=results.image.height;
+        }
+        cvFilter(results);
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasElm.width, canvasElm.height);
+        canvasCtx.drawImage(results.segmentationMask, 0, 0,canvasElm.width, canvasElm.height);
+        
+        // Only overwrite existing pixels.
+        canvasCtx.globalCompositeOperation = 'source-in';
+        //canvasCtx.fillStyle = '#00FF00';
+        //canvasCtx.fillRect(0, 0, canvasElm.width, canvasElm.height);
+        canvasCtx.drawImage(cvCanvasElm, 0, 0, canvasElm.width, canvasElm.height);
+        
+        // Only overwrite missing pixels.
+        canvasCtx.globalCompositeOperation = 'destination-atop';
+        canvasCtx.drawImage(results.image, 0, 0, canvasElm.width, canvasElm.height);
 
-  <script type="text/javascript">
-    let videoElm ;
-    let canvasElm;
-    let canvasCtx;
-    
-    let cvCanvasElm ;
-    let cvCanvasCtx;
-    
-    let initialized=false;
-    
-    window.onload = function() {
-      videoElm = document.getElementById('input_video');
-      canvasElm = document.getElementById('output_canvas');
-      canvasCtx = canvasElm.getContext('2d');
-      cvCanvasElm = document.getElementById('opencv_canvas');
-      cvCanvasCtx= cvCanvasElm.getContext('2d');
-      
-      let selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
-      }});
-      
-      //https://google.github.io/mediapipe/solutions/selfie_segmentation.html#models
-      selfieSegmentation.setOptions({
-        modelSelection: 0,
-      });
-    
-      selfieSegmentation.onResults(onResults);
-      let camera= new Camera(videoElm, {
-        onFrame: async () => {
-          await selfieSegmentation.send({image: videoElm});
-        },
-        width: 640,
-        height: 360
-      });
-    camera.start();
-    };
-    
-    function onResults(results) {
-      if(!initialized){
-        initialized=true;
-        cvCanvasElm.width=results.image.width;
-        cvCanvasElm.height=results.image.height;
-        canvasElm.width=results.image.width*2;
-        canvasElm.height=results.image.height*2;
+        canvasCtx.restore();
+      };
+      function cvFilter(results){
+        cvCanvasCtx.drawImage(results.image, 0, 0);
+        let src = cv.imread(cvCanvasElm);
+        let dst = new cv.Mat();
+        cv.cvtColor(src, dst, cv.COLOR_RGB2GRAY, 0);
+        cv.Canny(dst, dst, 50, 90, 3, false);
+        cv.bitwise_not(dst,dst);
+        cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA);
+        let imgData = new ImageData(new Uint8ClampedArray(dst.data, dst.cols, dst.rows), dst.cols ,dst.rows);
+        cvCanvasCtx.putImageData(imgData,0,0);
+        src.delete(); dst.delete();
       }
-      cvCanvasCtx.drawImage(results.image, 0, 0);
-      let src = cv.imread(cvCanvasElm);
-      //let src = cv.imread(results.image);
-      
-      //let src =cv.matFromImageData(results.image);
-      let dst = new cv.Mat();
-      
-      cv.cvtColor(src, src, cv.COLOR_RGB2GRAY, 0);
-      //cv.resize(src,src, new cv.Size(640, 360), 0, 0, cv.INTER_AREA);
-      // You can try more different parameters
-      cv.Canny(src, dst, 50, 90, 3, false);
-      cv.bitwise_not(dst,dst);
-      cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA);
-      //cv.resize(dst,dst, new cv.Size(1280, 720), 0, 0, cv.INTER_AREA);
-      //console.log(dst.cols+","+ dst.rows);
-      let imgData = new ImageData(new Uint8ClampedArray(dst.data, dst.cols, dst.rows), dst.cols ,dst.rows);
-      cvCanvasCtx.putImageData(imgData,0,0);
-      //cvCanvasCtx.scale(2, 2);
-      
-      src.delete(); dst.delete();
-      
-      canvasCtx.save();
-      canvasCtx.clearRect(0, 0, canvasElm.width, canvasElm.height);
-      canvasCtx.drawImage(results.segmentationMask, 0, 0,canvasElm.width, canvasElm.height);
-      
-       // Only overwrite existing pixels.
-      canvasCtx.globalCompositeOperation = 'source-in';
-      canvasCtx.drawImage(cvCanvasElm, 0, 0, canvasElm.width, canvasElm.height);
-      
-      // Only overwrite missing pixels.
-      canvasCtx.globalCompositeOperation = 'destination-atop';
-      canvasCtx.drawImage(results.image, 0, 0, canvasElm.width, canvasElm.height);
-      
-      canvasCtx.restore();     
-     
-    }
-</script>
+    </script>
+  </head>
   
-  
-</head>
-
-<body>
-  <div class="container">
+  <body>
     <video id="input_video" style="position:absolute; "></video>    
     <canvas id="output_canvas" style="position:absolute;"></canvas>
     <canvas id="opencv_canvas" style="position:absolute;display:none;"></canvas>
-  </div>
-</body>
+  </body>
 </html>
