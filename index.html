@@ -11,9 +11,9 @@
     <script type="text/javascript">
       let videoElm ;
       let canvasElm;
-      let canvasCtx;  
-      let cvCanvasElm ;
-      let cvCanvasCtx;      
+      let canvasCtx;    
+      let cvCanvasElm;
+      let cvCanvasCtx;
       let initialized=false;
       //初期化
       window.onload = function() {
@@ -25,7 +25,8 @@
         canvasCtx = canvasElm.getContext('2d');
         //opencv処理結果表示用のCanvasと描画に関する情報を取得
         cvCanvasElm = document.getElementById('opencv_canvas');
-        cvCanvasCtx= cvCanvasElm.getContext('2d');          
+        cvCanvasCtx= cvCanvasElm.getContext('2d');  
+        
         //Segmentationを使用するための関連ファイルの取得と初期化
         let selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
           return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
@@ -72,17 +73,17 @@
         canvasCtx.drawImage(results.segmentationMask, 0, 0,canvasElm.width, canvasElm.height);
         //不透明な領域に書き込み許可
         canvasCtx.globalCompositeOperation = 'source-in';
-        //背景色を緑(#00FF00)に設定し、canvasと同サイズの長方形(Rectangle)を描画
+        //背景の色を緑に設定し、canvasと動作サイズの長方形(Rectangle)を描画
         //canvasCtx.fillStyle = '#00FF00';
         //canvasCtx.fillRect(0, 0, canvasElm.width, canvasElm.height);
         canvasCtx.drawImage(cvCanvasElm, 0, 0, canvasElm.width, canvasElm.height);
-
         //透明な領域に書き込み許可
         canvasCtx.globalCompositeOperation = 'destination-atop';
         //カメラ画像を描画
-        canvasCtx.drawImage(results.image, 0, 0,canvasElm.width, canvasElm.height);
-        canvasCtx.restore();
+        canvasCtx.drawImage(results.image, 0, 0, canvasElm.width, canvasElm.height);
+        canvasCtx.restore();        
       };
+      
       //OpenCVを使った画像処理を行う関数の実装
       function cvFilter(results){
         //入力画像をOpenCV用のcanvasに表示
@@ -106,7 +107,6 @@
         //Matのメモリを解放
         src.delete(); dst.delete();
       };
-
     </script>
   </head>
   
@@ -114,5 +114,5 @@
     <video id="input_video" style="position:absolute; "></video>    
     <canvas id="output_canvas" style="position:absolute;"></canvas>
     <canvas id="opencv_canvas" style="position:absolute;display:none;"></canvas>
-  </body>
+</body>
 </html>
